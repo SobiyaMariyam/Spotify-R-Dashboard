@@ -1,0 +1,382 @@
+---
+title: "Spotify Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    social: menu
+    source_code: embed
+    logo: Spotify_logo.png 
+  runtime: shiny
+---
+
+<style>
+  .navbar { 
+    background-color: #121212 !important; 
+    border-color: #121212 !important;
+  }
+  .navbar-brand {
+    color: white !important;
+  }
+
+  .navbar-nav > li > a {
+    color: white !important;
+    transition: color 0.3s ease; /* Smooth transition on hover */
+  }
+
+  .navbar-nav > li > a:hover {
+    background-color: #1db954 !important; 
+  }
+  body, .box{
+  background-color: #121212 !important;
+  }
+
+  .box, .value-box{
+    background-color: #1db954 !important;
+    color: black !important;
+  }
+
+  .navbar-nav > li > a, .navbar-brand {
+    color: white !important;
+  }
+  .navbar .nav > li.active > a, 
+  .navbar .nav > li > a:hover {
+    background-color: #1db954 !important; /* Spotify Green */
+    color: white !important;
+  } 
+  .navbar .nav > li > a {
+    background-color: #212121 !important; /* Dark gray background for other tabs */
+    color: white !important;
+  }
+
+  .navbar .navbar-nav > li > a {
+    border-color: #1db954 !important; /* Spotify Green border */
+  }
+
+  .fa-music, .fa-fire, .fa-star, .fa-globe,.fa-headphones, .value-box {
+    color: transparant !important;
+  }
+  .value {
+  color: black !important;
+  }
+  .caption{
+  color: #535353;
+  }
+
+  .highcharts-title, .highcharts-axis-title, .highcharts-axis-labels, .highcharts-tooltip {
+    color: white !important;
+  }
+  .sidebar{
+  background-color: #535353;
+  color: #1db954;
+  }
+  .highcharts text{
+  color: white !important;
+  }
+
+</style>
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(highcharter)
+library(dplyr)
+library(readxl)
+library(DT)
+library(shiny)  
+
+data <- read_excel("Spotify_trendData.xlsx") 
+
+data <- data %>% mutate(
+  release_date = as.Date(date),  
+  streams = as.numeric(streams),
+  `energy_%` = as.numeric(`energy_%`),
+  `danceability_%` = as.numeric(`danceability_%`),
+  `valence_%` = as.numeric(`valence_%`),
+  `acousticness_%` = as.numeric(`acousticness_%`),
+  `speechiness_%` = as.numeric(`speechiness_%`)
+)
+
+
+# Define color palette
+spotify_green <- "#1db954"
+spotify_black <- "#212121"
+spotify_dark_gray <- "#535353"
+spotify_gray <- "#b3b3b3"
+```
+Track Analysis
+======================================
+Row {data-width=250}
+----------------------------------------------------------------
+
+### Total Tracks
+```{r}
+# Total Tracks
+total_tracks <- nrow(data)
+valueBox(
+  value = total_tracks, 
+  caption = "Total Tracks", 
+  icon = "fa-music", 
+  color = spotify_green
+)
+```
+
+### Most Popular Track
+```{r}
+# Most Popular Track
+popular_track <- data %>% 
+  arrange(desc(streams)) %>% 
+  slice(1) %>% 
+  pull(track_name)
+valueBox(
+  value = popular_track, 
+  caption = "Popular Track", 
+  icon = "fa-fire", 
+  color = spotify_green
+)
+```
+
+
+### Most Popular Artist
+```{r}
+# Most Popular Artist
+popular_artist <- data %>%
+  group_by(artist_name) %>%
+  summarise(TotalStreams = sum(streams, na.rm = TRUE)) %>%
+  arrange(desc(TotalStreams)) %>%
+  slice(1) %>%
+  pull(artist_name)
+valueBox(
+  value = popular_artist, 
+  caption = "Popular Artist", 
+  icon = "fa-star", 
+  color = spotify_green
+)
+```
+
+
+### Most Popular Artist Across All Playlists
+```{r}
+# Filter data for tracks released in 2023
+data_2023 <- data %>%
+  filter(released_year == 2023)
+
+# Find the highest streamed track in 2023
+highest_streamed_track_2023 <- data_2023 %>%
+  group_by(track_name) %>%
+  summarise(TotalStreams = sum(streams, na.rm = TRUE)) %>%
+  arrange(desc(TotalStreams)) %>%
+  slice(1) %>%
+  pull(track_name)
+
+# Display the highest streamed track in 2023 in a value box
+valueBox(
+  value = highest_streamed_track_2023, 
+  caption = "Highest Streamed Track in 2023", 
+  icon = "fa-headphones", 
+  color = spotify_green
+)
+```
+Row {data-width=500}
+-------------------------------------------------------------------------------
+### Top Tracks by Stream
+```{r}
+top_tracks <- data %>%
+  arrange(desc(streams)) %>%
+  head(10) %>%
+  select(track_name, streams)
+
+highchart() %>%
+  hc_chart(type = "bar", backgroundColor = "#121212", plotBackgroundColor = "#121212") %>%
+  hc_title(text = "Top Tracks by Stream", style = list(color = "#FFFFFF")) %>%
+  hc_xAxis(categories = top_tracks$track_name, labels = list(style = list(color = "#FFFFFF"))) %>%
+  hc_add_series(name = "Streams", data = top_tracks$streams, color = spotify_green) %>%
+  hc_plotOptions(series = list(borderWidth = 0, dataLabels = list(enabled = TRUE, style = list(color = "#FFFFFF")))) %>%
+  hc_yAxis(title = list(text = "Streams", style = list(color = "#FFFFFF")))
+
+```
+### Top Artists by Total Streams
+```{r}
+top_artists <- data %>%
+  group_by(artist_name) %>%
+  summarise(TotalStreams = sum(streams, na.rm = TRUE)) %>%
+  arrange(desc(TotalStreams)) %>%
+  head(10)
+
+highchart() %>%
+  hc_chart(type = "pie", backgroundColor = "#121212", plotBackgroundColor = "#121212") %>%
+  hc_title(text = "Top Artists by Total Streams", style = list(color = "#FFFFFF")) %>%
+  hc_add_series(
+    name = "Total Streams",
+    data = list_parse(top_artists %>% select(name = artist_name, y = TotalStreams)),
+    colorByPoint = TRUE
+  ) %>%
+  hc_plotOptions(pie = list(
+    dataLabels = list(enabled = TRUE, style = list(color = "#FFFFFF"))
+  ))
+```
+
+### Stream Distribution by Month
+```{r}
+monthly_streams <- data %>%
+  group_by(released_month) %>%
+  summarise(TotalStreams = sum(streams, na.rm = TRUE))
+
+highchart() %>%
+  hc_chart(type = "area", backgroundColor = "#121212", plotBackgroundColor = "#121212") %>%
+  hc_title(text = "Stream Distribution by Month", style = list(color = "#FFFFFF")) %>%
+  hc_xAxis(categories = monthly_streams$released_month, labels = list(style = list(color = "#FFFFFF"))) %>%
+  hc_add_series(name = "Total Streams", data = monthly_streams$TotalStreams, color = spotify_green, fillOpacity = 0.3) %>%
+  hc_yAxis(title = list(text = "Total Streams", style = list(color = "#FFFFFF")))
+```
+
+
+Advance Analysis
+===============================================
+Inputs {.sidebar}
+----------------------------------------------------------------
+
+```{r}
+min_date <- min(data$release_date, na.rm = TRUE)
+max_date <- max(data$release_date, na.rm = TRUE)
+
+dateRangeInput("date_range", "Date Range", 
+               start = min_date, end = max_date,  # Default to full range
+               min = min_date, max = max_date)    # Restrict the range to actual data limits
+```
+
+Filtered Data Visualizations {.tabset .tabset-fade}
+-----------------------------------------------------
+
+```{r, context="server"}
+# Reactive expression to filter data
+filtered_data <- reactive({
+  req(input$date_range)  # Ensure input is initialized
+  data %>%
+    filter(
+      release_date >= input$date_range[1],
+      release_date <= input$date_range[2]
+    )
+})
+```
+
+### Total Streams Over Time
+```{r, context="server"}
+output$stream_density_calendar <- renderHighchart({
+  calendar_data <- filtered_data()
+
+  # Check if filtered data is empty
+  if (nrow(calendar_data) == 0) {
+    return(highchart() %>% hc_title(text = "No Data Available for Selected Date Range", style = list(color = "red")))
+  }
+
+  # Prepare data for calendar plot by counting streams per day
+  calendar_data <- calendar_data %>%
+    group_by(release_date) %>%
+    summarise(TotalStreams = sum(streams, na.rm = TRUE)) %>%
+    ungroup()
+
+  highchart() %>%
+    hc_chart(type = "scatter", backgroundColor = spotify_black) %>%
+    hc_xAxis(type = "datetime", title = list(text = "Date", style = list(color = "#FFFFFF"))) %>%
+    hc_yAxis(title = list(text = "Stream Density", style = list(color = "#FFFFFF"))) %>%
+    hc_add_series(name = "Daily Streams", data = list_parse2(calendar_data), color = spotify_green, marker = list(radius = 5)) %>%
+    hc_tooltip(pointFormat = "{point.x:%Y-%m-%d}: {point.y} streams") %>%
+    hc_title(text = "Stream Density by Day (Calendar Plot)", style = list(color = "#FFFFFF"))
+})
+
+highchartOutput("stream_density_calendar")
+```
+
+### Top 10 Tracks by Streams
+```{r, context="server"}
+output$top_tracks_wordcloud <- renderHighchart({
+  wordcloud_data <- filtered_data()
+
+  # Check if filtered data is empty
+  if (nrow(wordcloud_data) == 0) {
+    return(highchart() %>% hc_title(text = "No Data Available for Selected Filters", style = list(color = "red")))
+  }
+
+  wordcloud_data <- wordcloud_data %>%
+    group_by(track_name) %>%
+    summarise(TotalStreams = sum(streams, na.rm = TRUE)) %>%
+    arrange(desc(TotalStreams)) %>%
+    slice_head(n = 10)
+
+  highchart() %>%
+    hc_chart(type = "wordcloud", backgroundColor = spotify_black) %>%
+    hc_add_series(name = "Streams", data = list_parse2(wordcloud_data), color = spotify_green) %>%
+    hc_title(text = "Top 10 Tracks by Streams", style = list(color = "#FFFFFF"))
+})
+
+highchartOutput("top_tracks_wordcloud")
+```
+
+### Streams by Artist
+```{r, context="server"}
+output$streams_treemap <- renderHighchart({
+  treemap_data <- filtered_data()
+
+  # Check if filtered data is empty
+  if (nrow(treemap_data) == 0) {
+    return(highchart() %>% hc_title(text = "No Data Available for Selected Date Range", style = list(color = "red")))
+  }
+
+  # Group data by artist and calculate total streams
+  treemap_data <- treemap_data %>%
+    group_by(artist_name) %>%
+    summarise(TotalStreams = sum(streams, na.rm = TRUE)) %>%
+    arrange(desc(TotalStreams)) %>%
+    slice_head(n = 15)  # Limit to top 15 artists for readability
+
+  # Define a color palette for the treemap
+  color_palette <- c("#1db954", "#212121", "#121212", "#535353", "#b3b3b3")
+
+  highchart() %>%
+    hc_chart(type = "treemap", backgroundColor = spotify_black) %>%
+    hc_add_series(
+      name = "Streams by Artist",
+      data = list_parse(treemap_data %>% transmute(name = artist_name, value = TotalStreams, color = sample(color_palette, n(), replace = TRUE)))
+    ) %>%
+    hc_title(text = "Streams by Artist", style = list(color = "#FFFFFF"))
+})
+
+highchartOutput("streams_treemap")
+```
+
+### Distribution of Key Audio Features
+```{r, context="server"}
+output$audio_features_radar <- renderHighchart({
+  radar_data <- filtered_data()
+
+  # Check if filtered data is empty
+  if (nrow(radar_data) == 0) {
+    return(highchart() %>% hc_title(text = "No Data Available for Selected Filters", style = list(color = "red")))
+  }
+
+  radar_data <- radar_data %>%
+    summarise(
+      Energy = mean(`energy_%`, na.rm = TRUE),
+      Danceability = mean(`danceability_%`, na.rm = TRUE),
+      Valence = mean(`valence_%`, na.rm = TRUE),
+      Acousticness = mean(`acousticness_%`, na.rm = TRUE),
+      Speechiness = mean(`speechiness_%`, na.rm = TRUE)
+    )
+
+  highchart() %>%
+    hc_chart(polar = TRUE, type = "line", backgroundColor = spotify_black) %>%
+    hc_xAxis(categories = names(radar_data), tickmarkPlacement = "on", lineWidth = 0, labels = list(style = list(color = "#FFFFFF"))) %>%
+    hc_yAxis(gridLineInterpolation = "polygon", lineWidth = 0, min = 0, labels = list(enabled = FALSE)) %>%
+    hc_add_series(name = "Audio Features", data = as.numeric(radar_data), color = spotify_green) %>%
+    hc_title(text = "Audio Feature Distribution", style = list(color = "#FFFFFF"))
+})
+
+highchartOutput("audio_features_radar")
+```
+
+Row Data
+============================
+
+```{r}
+# Render the interactive DataTable
+DT::datatable(data, options = list(pageLength = 50, scrollX = TRUE), rownames = FALSE)
+```

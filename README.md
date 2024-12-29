@@ -65,6 +65,8 @@ The dataset used in this project is sourced from Spotify and contains:
 
 ## Preview
 
-http://127.0.0.1:4848/Spotify_DashBoard.Rmd
+![Screenshot 2024-12-29 173353](https://github.com/user-attachments/assets/ca00a8f6-16c7-4ec0-83f6-1169e5106926)
+![image](https://github.com/user-attachments/assets/3b695624-5773-4762-b215-b34e2010e8ef)
+
 ---
 
